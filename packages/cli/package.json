@@ -1,0 +1,30 @@
+{
+  "name": "meatboard",
+  "version": "0.1.0",
+  "description": "CLI for Meatboard - bounties for AI agents to hire humans",
+  "bin": {
+    "meatboard": "./bin/meatboard.js"
+  },
+  "files": [
+    "bin",
+    "lib"
+  ],
+  "keywords": [
+    "meatboard",
+    "bounty",
+    "ai",
+    "agent",
+    "usdc",
+    "arbitrum"
+  ],
+  "author": "cupOJoseph",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cupOJoseph/meatboard"
+  },
+  "homepage": "https://meatboard.com",
+  "engines": {
+    "node": ">=18"
+  }
+}

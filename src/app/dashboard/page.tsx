@@ -21,7 +21,7 @@ export default function DashboardPage() {
   
   let authenticated = false;
   let ready = true;
-  let user: { wallet?: { address?: string } } | null = null;
+  let user: { wallet?: { address?: string }; email?: { address?: string } } | null = null;
 
   try {
     const privy = usePrivy();
@@ -42,16 +42,16 @@ export default function DashboardPage() {
   useEffect(() => {
     setBounties([
       {
-        id: '1',
-        title: 'Photo of Times Square',
+        id: 'bounty_1',
+        title: 'Photo of Times Square billboard',
         reward: 5.0,
         status: 'submitted',
         role: 'claimer',
         created_at: new Date().toISOString(),
       },
       {
-        id: '2',
-        title: 'Verify store hours',
+        id: 'bounty_2',
+        title: 'Verify store hours at 123 Main',
         reward: 2.5,
         status: 'paid',
         role: 'claimer',
@@ -62,8 +62,8 @@ export default function DashboardPage() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-stone-400 font-mono">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-gray-500">Loading...</div>
       </div>
     );
   }
@@ -81,96 +81,111 @@ export default function DashboardPage() {
     .reduce((sum, b) => sum + b.reward, 0);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-50">
       <Header />
 
-      <main className="max-w-4xl mx-auto p-4 sm:p-8">
+      <main className="max-w-4xl mx-auto px-4 py-8">
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
+
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8">
-          <div className="bg-stone-800 border border-stone-700 rounded-lg p-3 sm:p-6">
-            <div className="text-stone-400 text-xs sm:text-sm font-mono mb-1">Earned</div>
-            <div className="text-xl sm:text-3xl western-font text-green-500">
-              ${totalEarned.toFixed(2)}
-            </div>
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="text-gray-500 text-sm mb-1">Total Earned</div>
+            <div className="text-2xl font-bold text-green-600">${totalEarned.toFixed(2)}</div>
           </div>
-          <div className="bg-stone-800 border border-stone-700 rounded-lg p-3 sm:p-6">
-            <div className="text-stone-400 text-xs sm:text-sm font-mono mb-1">Active</div>
-            <div className="text-xl sm:text-3xl western-font text-amber-500">
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="text-gray-500 text-sm mb-1">Active</div>
+            <div className="text-2xl font-bold text-amber-600">
               {bounties.filter((b) => !['paid', 'expired', 'cancelled'].includes(b.status)).length}
             </div>
           </div>
-          <div className="bg-stone-800 border border-stone-700 rounded-lg p-3 sm:p-6">
-            <div className="text-stone-400 text-xs sm:text-sm font-mono mb-1">Done</div>
-            <div className="text-xl sm:text-3xl western-font text-purple-500">
+          <div className="bg-white border border-gray-200 rounded-xl p-4">
+            <div className="text-gray-500 text-sm mb-1">Completed</div>
+            <div className="text-2xl font-bold text-purple-600">
               {bounties.filter((b) => b.status === 'paid').length}
             </div>
           </div>
         </div>
 
         {/* Wallet */}
-        <div className="bg-stone-800 border border-stone-700 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
+        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-            <div className="min-w-0">
-              <div className="text-stone-400 text-xs sm:text-sm font-mono mb-1">Your Wallet</div>
-              <div className="text-amber-100 font-mono text-xs sm:text-base truncate">
-                {user?.wallet?.address || 'No wallet connected'}
+            <div>
+              <div className="text-gray-500 text-sm mb-1">Wallet</div>
+              <div className="font-mono text-gray-900 text-sm">
+                {user?.wallet?.address || user?.email?.address || 'Not connected'}
               </div>
             </div>
-            <button className="btn-western px-4 py-2 text-sm rounded w-full sm:w-auto">
+            <button className="btn-western px-4 py-2 text-sm rounded-lg">
               Withdraw USDC
             </button>
           </div>
         </div>
 
+        {/* API Key (for agents) */}
+        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <div>
+              <div className="text-gray-500 text-sm mb-1">API Key</div>
+              <div className="font-mono text-gray-400 text-sm">
+                ••••••••••••••••
+              </div>
+            </div>
+            <button className="btn-secondary px-4 py-2 text-sm rounded-lg border-gray-200">
+              Generate Key
+            </button>
+          </div>
+        </div>
+
         {/* Tabs */}
-        <div className="flex gap-2 sm:gap-4 mb-6 border-b border-stone-700">
+        <div className="flex gap-4 mb-4 border-b border-gray-200">
           <button
             onClick={() => setActiveTab('claimed')}
-            className={`pb-3 px-2 sm:px-4 font-mono text-xs sm:text-sm border-b-2 transition-colors ${
+            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'claimed'
-                ? 'border-amber-500 text-amber-500'
-                : 'border-transparent text-stone-400 hover:text-amber-400'
+                ? 'border-amber-500 text-amber-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            🤠 Claimed
+            🤠 Claimed Bounties
           </button>
           <button
             onClick={() => setActiveTab('posted')}
-            className={`pb-3 px-2 sm:px-4 font-mono text-xs sm:text-sm border-b-2 transition-colors ${
+            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'posted'
-                ? 'border-amber-500 text-amber-500'
-                : 'border-transparent text-stone-400 hover:text-amber-400'
+                ? 'border-amber-500 text-amber-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            🤖 Posted
+            🤖 Posted Bounties
           </button>
         </div>
 
         {/* Bounty List */}
-        <div className="space-y-3 sm:space-y-4">
+        <div className="space-y-3">
           {filteredBounties.length === 0 ? (
-            <div className="text-center py-12 text-stone-500 font-mono text-sm">
+            <div className="text-center py-12 text-gray-500">
               No {activeTab} bounties yet
             </div>
           ) : (
             filteredBounties.map((bounty) => (
               <div
                 key={bounty.id}
-                className="bg-stone-800 border border-stone-700 rounded-lg p-4 flex justify-between items-center gap-4"
+                className="bg-white border border-gray-200 rounded-xl p-4 flex justify-between items-center"
               >
-                <div className="min-w-0 flex-1">
-                  <div className="text-amber-100 text-sm sm:text-base truncate">{bounty.title}</div>
-                  <div className="text-xs text-stone-500 font-mono">
+                <div>
+                  <div className="font-medium text-gray-900">{bounty.title}</div>
+                  <div className="text-sm text-gray-500">
                     {new Date(bounty.created_at).toLocaleDateString()}
                   </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-lg sm:text-xl western-font text-green-500">
+                <div className="text-right">
+                  <div className="text-lg font-bold text-green-600">
                     ${bounty.reward.toFixed(2)}
                   </div>
-                  <div className="text-xs text-stone-400 font-mono uppercase">
+                  <span className={`text-xs px-2 py-0.5 rounded-full badge-${bounty.status}`}>
                     {bounty.status}
-                  </div>
+                  </span>
                 </div>
               </div>
             ))

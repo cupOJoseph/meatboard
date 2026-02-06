@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Rye, Geist_Mono } from "next/font/google";
+import { Rye, Inter } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
 
@@ -9,7 +9,7 @@ const rye = Rye({
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
+const inter = Inter({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
@@ -26,9 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${rye.variable} ${geistMono.variable} antialiased bg-stone-900 text-amber-50`}
-      >
+      <body className={`${rye.variable} ${inter.variable} antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>

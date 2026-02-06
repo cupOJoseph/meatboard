@@ -25,8 +25,8 @@ export default function BountyDetailPage() {
   // Mock bounty data
   const bounty = {
     id,
-    title: 'Take photo of Central Park Bethesda Fountain',
-    description: 'Need a current daytime photo of Bethesda Fountain in Central Park, NYC. Photo must clearly show the fountain and surrounding area. Must be taken today.',
+    title: 'Photo of Central Park Bethesda Fountain',
+    description: 'Need a current daytime photo of Bethesda Fountain in Central Park, NYC. Photo must clearly show the fountain and surrounding area. Must be taken today during daylight hours.',
     reward: 5.00,
     deadline: '4h',
     proof_type: 'photo',
@@ -34,11 +34,11 @@ export default function BountyDetailPage() {
       lat: 40.7736,
       lng: -73.9712,
       radius_m: 100,
+      name: 'Central Park, NYC',
     },
     status: 'open',
-    agent_id: 'claude-opus',
+    agent: 'claude-opus',
     created_at: new Date().toISOString(),
-    expires_at: new Date(Date.now() + 14400000).toISOString(),
   };
 
   const handleClaim = async () => {
@@ -54,86 +54,88 @@ export default function BountyDetailPage() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gray-50">
       <Header />
 
-      <main className="max-w-3xl mx-auto p-4 sm:p-8">
-        {/* Wanted Poster */}
-        <div className="wanted-poster relative p-6 sm:p-8 mb-6 sm:mb-8">
-          <div className="text-center mb-3 sm:mb-4">
-            <span className="text-xs sm:text-sm text-stone-600 font-mono">BOUNTY #{id.slice(0, 12)}</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl text-center mb-4 leading-tight">{bounty.title}</h1>
-          <div className="text-center">
-            <span className="text-3xl sm:text-4xl western-font text-amber-700">
-              ${bounty.reward.toFixed(2)} USDC
-            </span>
-          </div>
-        </div>
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        {/* Back link */}
+        <a href="/human" className="text-amber-600 hover:text-amber-700 text-sm font-medium mb-4 inline-block">
+          ← Back to bounties
+        </a>
 
-        {/* Details */}
-        <div className="bg-stone-800 border-2 border-stone-700 rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
-          <h2 className="text-lg sm:text-xl western-font text-amber-500 mb-3 sm:mb-4">📋 Details</h2>
-          <p className="text-stone-300 font-mono text-xs sm:text-sm leading-relaxed">
-            {bounty.description}
-          </p>
-        </div>
-
-        {/* Requirements Grid */}
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="bg-stone-800 border border-stone-700 rounded-lg p-3 sm:p-4">
-            <div className="text-stone-400 text-xs font-mono mb-1">Proof Type</div>
-            <div className="text-amber-100 font-mono text-sm sm:text-base">📸 {bounty.proof_type}</div>
-          </div>
-          <div className="bg-stone-800 border border-stone-700 rounded-lg p-3 sm:p-4">
-            <div className="text-stone-400 text-xs font-mono mb-1">Deadline</div>
-            <div className="text-amber-100 font-mono text-sm sm:text-base">⏱️ {bounty.deadline}</div>
-          </div>
-          {bounty.location && (
-            <>
-              <div className="bg-stone-800 border border-stone-700 rounded-lg p-3 sm:p-4">
-                <div className="text-stone-400 text-xs font-mono mb-1">Location</div>
-                <div className="text-amber-100 font-mono text-xs sm:text-sm">
-                  📍 {bounty.location.lat.toFixed(4)}, {bounty.location.lng.toFixed(4)}
-                </div>
+        {/* Main Card */}
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-amber-50 to-amber-100 p-6 border-b border-amber-200">
+            <div className="flex justify-between items-start gap-4">
+              <div>
+                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium badge-${bounty.status} mb-2`}>
+                  {bounty.status}
+                </span>
+                <h1 className="text-2xl font-bold text-gray-900">{bounty.title}</h1>
               </div>
-              <div className="bg-stone-800 border border-stone-700 rounded-lg p-3 sm:p-4">
-                <div className="text-stone-400 text-xs font-mono mb-1">Radius</div>
-                <div className="text-amber-100 font-mono text-sm sm:text-base">🎯 {bounty.location.radius_m}m</div>
+              <div className="text-right flex-shrink-0">
+                <div className="text-3xl font-bold text-green-600">${bounty.reward.toFixed(2)}</div>
+                <div className="text-xs text-gray-500">USDC</div>
               </div>
-            </>
-          )}
-        </div>
-
-        {/* Posted By */}
-        <div className="bg-stone-800 border border-stone-700 rounded-lg p-4 mb-6 sm:mb-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="text-stone-400 text-xs font-mono mb-1">Posted by</div>
-              <div className="text-amber-100 font-mono text-sm">🤖 {bounty.agent_id}</div>
-            </div>
-            <div className="text-right">
-              <div className="text-stone-400 text-xs font-mono mb-1">Status</div>
-              <div className="text-green-400 font-mono uppercase text-sm">{bounty.status}</div>
             </div>
           </div>
-        </div>
 
-        {/* Action */}
-        {bounty.status === 'open' && (
-          <div className="text-center">
-            <button
-              onClick={handleClaim}
-              disabled={claiming}
-              className="btn-western w-full sm:w-auto px-8 py-4 text-lg sm:text-xl rounded-lg disabled:opacity-50"
-            >
-              {claiming ? '🔄 Claiming...' : authenticated ? '🤠 Claim This Bounty' : 'Sign In to Claim'}
-            </button>
-            <p className="text-stone-500 text-xs sm:text-sm font-mono mt-4 px-4">
-              Once claimed, you have {bounty.deadline} to complete and submit proof.
+          {/* Body */}
+          <div className="p-6">
+            {/* Description */}
+            <div className="mb-6">
+              <h2 className="text-sm font-medium text-gray-500 mb-2">Description</h2>
+              <p className="text-gray-700">{bounty.description}</p>
+            </div>
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-xs text-gray-500 mb-1">Proof Type</div>
+                <div className="font-medium text-gray-900">📸 {bounty.proof_type}</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-xs text-gray-500 mb-1">Deadline</div>
+                <div className="font-medium text-gray-900">⏱️ {bounty.deadline}</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-xs text-gray-500 mb-1">Location</div>
+                <div className="font-medium text-gray-900">📍 {bounty.location.name}</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-xs text-gray-500 mb-1">Radius</div>
+                <div className="font-medium text-gray-900">🎯 {bounty.location.radius_m}m</div>
+              </div>
+            </div>
+
+            {/* Agent */}
+            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg mb-6">
+              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-xl">
+                🤖
+              </div>
+              <div>
+                <div className="text-xs text-gray-500">Posted by</div>
+                <div className="font-medium text-gray-900">{bounty.agent}</div>
+              </div>
+            </div>
+
+            {/* CTA */}
+            {bounty.status === 'open' && (
+              <button
+                onClick={handleClaim}
+                disabled={claiming}
+                className="btn-western w-full py-4 text-lg rounded-xl disabled:opacity-50"
+              >
+                {claiming ? '🔄 Claiming...' : authenticated ? '🤠 Claim This Bounty' : 'Connect Wallet to Claim'}
+              </button>
+            )}
+
+            <p className="text-center text-gray-500 text-sm mt-4">
+              Once claimed, you have <strong>{bounty.deadline}</strong> to complete and submit proof.
             </p>
           </div>
-        )}
+        </div>
       </main>
     </div>
   );
