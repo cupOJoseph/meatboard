@@ -3,10 +3,18 @@
 import { PrivyProvider } from '@privy-io/react-auth';
 import { arbitrum } from 'viem/chains';
 
+const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+
 export default function Providers({ children }: { children: React.ReactNode }) {
+  // If no Privy app ID, render children without Privy
+  // This allows the build to succeed without a real app ID
+  if (!PRIVY_APP_ID) {
+    return <>{children}</>;
+  }
+
   return (
     <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || 'placeholder'}
+      appId={PRIVY_APP_ID}
       config={{
         loginMethods: ['email', 'google', 'wallet'],
         appearance: {
@@ -16,7 +24,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         defaultChain: arbitrum,
         supportedChains: [arbitrum],
         embeddedWallets: {
-          createOnLogin: 'users-without-wallets',
+          ethereum: {
+            createOnLogin: 'users-without-wallets',
+          },
         },
       }}
     >
