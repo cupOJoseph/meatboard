@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  --background: #1c1917;
+  --foreground: #fef3c7;
+  --accent: #d97706;
+  --accent-dark: #b45309;
+  --paper: #fef3c7;
+  --paper-dark: #fde68a;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-mono), monospace;
+}
+
+h1, h2, h3, .western-font {
+  font-family: var(--font-rye), serif;
+}
+
+/* Wanted poster style */
+.wanted-poster {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fef3c7 100%);
+  border: 4px solid #78350f;
+  box-shadow: 
+    inset 0 0 20px rgba(120, 53, 15, 0.3),
+    0 4px 20px rgba(0, 0, 0, 0.5);
+  color: #1c1917;
+}
+
+.wanted-poster::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  border: 2px solid #78350f;
+  pointer-events: none;
+}
+
+/* Button styles */
+.btn-western {
+  background: linear-gradient(180deg, #d97706 0%, #b45309 100%);
+  border: 3px solid #78350f;
+  color: #fef3c7;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 0 #78350f, 0 6px 10px rgba(0,0,0,0.3);
+  transition: all 0.1s ease;
+}
+
+.btn-western:hover {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #78350f, 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.btn-western:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 #78350f, 0 2px 5px rgba(0,0,0,0.3);
+}
+
+/* Code blocks */
+pre {
+  background: #292524;
+  border: 2px solid #44403c;
+  border-radius: 4px;
+}
+
+code {
+  font-family: var(--font-geist-mono), monospace;
+}
