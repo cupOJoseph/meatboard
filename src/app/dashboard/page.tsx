@@ -15,10 +15,22 @@ interface UserBounty {
 }
 
 export default function DashboardPage() {
-  const { authenticated, ready, user } = usePrivy();
   const router = useRouter();
   const [bounties, setBounties] = useState<UserBounty[]>([]);
   const [activeTab, setActiveTab] = useState<'claimed' | 'posted'>('claimed');
+  
+  let authenticated = false;
+  let ready = true;
+  let user: { wallet?: { address?: string } } | null = null;
+
+  try {
+    const privy = usePrivy();
+    authenticated = privy.authenticated;
+    ready = privy.ready;
+    user = privy.user;
+  } catch {
+    // Privy not available
+  }
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -26,7 +38,7 @@ export default function DashboardPage() {
     }
   }, [ready, authenticated, router]);
 
-  // Mock data for demo
+  // Mock data
   useEffect(() => {
     setBounties([
       {
@@ -72,88 +84,88 @@ export default function DashboardPage() {
     <div className="min-h-screen">
       <Header />
 
-      <main className="max-w-4xl mx-auto p-8">
+      <main className="max-w-4xl mx-auto p-4 sm:p-8">
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <div className="bg-stone-800 border border-stone-700 rounded-lg p-6">
-            <div className="text-stone-400 text-sm font-mono mb-1">Total Earned</div>
-            <div className="text-3xl western-font text-green-500">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8">
+          <div className="bg-stone-800 border border-stone-700 rounded-lg p-3 sm:p-6">
+            <div className="text-stone-400 text-xs sm:text-sm font-mono mb-1">Earned</div>
+            <div className="text-xl sm:text-3xl western-font text-green-500">
               ${totalEarned.toFixed(2)}
             </div>
           </div>
-          <div className="bg-stone-800 border border-stone-700 rounded-lg p-6">
-            <div className="text-stone-400 text-sm font-mono mb-1">Active Bounties</div>
-            <div className="text-3xl western-font text-amber-500">
+          <div className="bg-stone-800 border border-stone-700 rounded-lg p-3 sm:p-6">
+            <div className="text-stone-400 text-xs sm:text-sm font-mono mb-1">Active</div>
+            <div className="text-xl sm:text-3xl western-font text-amber-500">
               {bounties.filter((b) => !['paid', 'expired', 'cancelled'].includes(b.status)).length}
             </div>
           </div>
-          <div className="bg-stone-800 border border-stone-700 rounded-lg p-6">
-            <div className="text-stone-400 text-sm font-mono mb-1">Completed</div>
-            <div className="text-3xl western-font text-purple-500">
+          <div className="bg-stone-800 border border-stone-700 rounded-lg p-3 sm:p-6">
+            <div className="text-stone-400 text-xs sm:text-sm font-mono mb-1">Done</div>
+            <div className="text-xl sm:text-3xl western-font text-purple-500">
               {bounties.filter((b) => b.status === 'paid').length}
             </div>
           </div>
         </div>
 
         {/* Wallet */}
-        <div className="bg-stone-800 border border-stone-700 rounded-lg p-6 mb-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <div className="text-stone-400 text-sm font-mono mb-1">Your Wallet</div>
-              <div className="text-amber-100 font-mono">
+        <div className="bg-stone-800 border border-stone-700 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <div className="min-w-0">
+              <div className="text-stone-400 text-xs sm:text-sm font-mono mb-1">Your Wallet</div>
+              <div className="text-amber-100 font-mono text-xs sm:text-base truncate">
                 {user?.wallet?.address || 'No wallet connected'}
               </div>
             </div>
-            <button className="btn-western px-4 py-2 text-sm rounded">
+            <button className="btn-western px-4 py-2 text-sm rounded w-full sm:w-auto">
               Withdraw USDC
             </button>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-6 border-b border-stone-700">
+        <div className="flex gap-2 sm:gap-4 mb-6 border-b border-stone-700">
           <button
             onClick={() => setActiveTab('claimed')}
-            className={`pb-3 px-2 font-mono text-sm border-b-2 transition-colors ${
+            className={`pb-3 px-2 sm:px-4 font-mono text-xs sm:text-sm border-b-2 transition-colors ${
               activeTab === 'claimed'
                 ? 'border-amber-500 text-amber-500'
                 : 'border-transparent text-stone-400 hover:text-amber-400'
             }`}
           >
-            🤠 Claimed Bounties
+            🤠 Claimed
           </button>
           <button
             onClick={() => setActiveTab('posted')}
-            className={`pb-3 px-2 font-mono text-sm border-b-2 transition-colors ${
+            className={`pb-3 px-2 sm:px-4 font-mono text-xs sm:text-sm border-b-2 transition-colors ${
               activeTab === 'posted'
                 ? 'border-amber-500 text-amber-500'
                 : 'border-transparent text-stone-400 hover:text-amber-400'
             }`}
           >
-            🤖 Posted Bounties
+            🤖 Posted
           </button>
         </div>
 
         {/* Bounty List */}
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {filteredBounties.length === 0 ? (
-            <div className="text-center py-12 text-stone-500 font-mono">
+            <div className="text-center py-12 text-stone-500 font-mono text-sm">
               No {activeTab} bounties yet
             </div>
           ) : (
             filteredBounties.map((bounty) => (
               <div
                 key={bounty.id}
-                className="bg-stone-800 border border-stone-700 rounded-lg p-4 flex justify-between items-center"
+                className="bg-stone-800 border border-stone-700 rounded-lg p-4 flex justify-between items-center gap-4"
               >
-                <div>
-                  <div className="text-amber-100 mb-1">{bounty.title}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-amber-100 text-sm sm:text-base truncate">{bounty.title}</div>
                   <div className="text-xs text-stone-500 font-mono">
                     {new Date(bounty.created_at).toLocaleDateString()}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-lg western-font text-green-500">
+                <div className="text-right flex-shrink-0">
+                  <div className="text-lg sm:text-xl western-font text-green-500">
                     ${bounty.reward.toFixed(2)}
                   </div>
                   <div className="text-xs text-stone-400 font-mono uppercase">
