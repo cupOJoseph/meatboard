@@ -2,23 +2,27 @@
 
 import { usePrivy } from '@privy-io/react-auth';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Header from '@/components/Header';
 
-interface UserBounty {
+interface ApiBounty {
   id: string;
   title: string;
   reward: number;
   status: string;
-  role: 'claimer' | 'agent';
+  agent_id: string;
+  claimer_id?: string;
   created_at: string;
 }
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [bounties, setBounties] = useState<UserBounty[]>([]);
+  const [bounties, setBounties] = useState<ApiBounty[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'claimed' | 'posted'>('claimed');
-  
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [generatingKey, setGeneratingKey] = useState(false);
+
   let authenticated = false;
   let ready = true;
   let user: { wallet?: { address?: string }; email?: { address?: string } } | null = null;
@@ -32,33 +36,50 @@ export default function DashboardPage() {
     // Privy not available
   }
 
+  const walletAddress = user?.wallet?.address;
+
   useEffect(() => {
     if (ready && !authenticated) {
       router.push('/');
     }
   }, [ready, authenticated, router]);
 
-  // Mock data
-  useEffect(() => {
-    setBounties([
-      {
-        id: 'bounty_1',
-        title: 'Photo of Times Square billboard',
-        reward: 5.0,
-        status: 'submitted',
-        role: 'claimer',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'bounty_2',
-        title: 'Verify store hours at 123 Main',
-        reward: 2.5,
-        status: 'paid',
-        role: 'claimer',
-        created_at: new Date(Date.now() - 86400000).toISOString(),
-      },
-    ]);
+  const fetchBounties = useCallback(async () => {
+    try {
+      const res = await fetch('/api/bounty');
+      if (!res.ok) return;
+      const data = await res.json();
+      setBounties(data.bounties || []);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    if (authenticated) fetchBounties();
+  }, [authenticated, fetchBounties]);
+
+  const handleGenerateKey = async () => {
+    if (!walletAddress) return;
+    setGeneratingKey(true);
+    try {
+      const res = await fetch('/api/user/apikey', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet_address: walletAddress }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setApiKey(data.api_key);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setGeneratingKey(false);
+    }
+  };
 
   if (!ready) {
     return (
@@ -68,15 +89,19 @@ export default function DashboardPage() {
     );
   }
 
-  if (!authenticated) {
-    return null;
-  }
+  if (!authenticated) return null;
 
-  const filteredBounties = bounties.filter((b) =>
+  // Simple role assignment based on wallet
+  const myBounties = bounties.map((b) => ({
+    ...b,
+    role: (b.agent_id === walletAddress?.toLowerCase() ? 'agent' : b.claimer_id ? 'claimer' : null) as 'agent' | 'claimer' | null,
+  }));
+
+  const filteredBounties = myBounties.filter((b) =>
     activeTab === 'claimed' ? b.role === 'claimer' : b.role === 'agent'
   );
 
-  const totalEarned = bounties
+  const totalEarned = myBounties
     .filter((b) => b.role === 'claimer' && b.status === 'paid')
     .reduce((sum, b) => sum + b.reward, 0);
 
@@ -87,7 +112,6 @@ export default function DashboardPage() {
       <main className="max-w-4xl mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
-        {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="text-gray-500 text-sm mb-1">Total Earned</div>
@@ -96,48 +120,47 @@ export default function DashboardPage() {
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="text-gray-500 text-sm mb-1">Active</div>
             <div className="text-2xl font-bold text-amber-600">
-              {bounties.filter((b) => !['paid', 'expired', 'cancelled'].includes(b.status)).length}
+              {myBounties.filter((b) => !['paid', 'expired', 'cancelled'].includes(b.status)).length}
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-xl p-4">
             <div className="text-gray-500 text-sm mb-1">Completed</div>
             <div className="text-2xl font-bold text-purple-600">
-              {bounties.filter((b) => b.status === 'paid').length}
+              {myBounties.filter((b) => b.status === 'paid').length}
             </div>
           </div>
         </div>
 
-        {/* Wallet */}
         <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
               <div className="text-gray-500 text-sm mb-1">Wallet</div>
               <div className="font-mono text-gray-900 text-sm">
-                {user?.wallet?.address || user?.email?.address || 'Not connected'}
+                {walletAddress || user?.email?.address || 'Not connected'}
               </div>
             </div>
-            <button className="btn-western px-4 py-2 text-sm rounded-lg">
-              Withdraw USDC
-            </button>
+            <button className="btn-western px-4 py-2 text-sm rounded-lg">Withdraw USDC</button>
           </div>
         </div>
 
-        {/* API Key (for agents) */}
         <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
             <div>
               <div className="text-gray-500 text-sm mb-1">API Key</div>
               <div className="font-mono text-gray-400 text-sm">
-                ••••••••••••••••
+                {apiKey || '••••••••••••••••'}
               </div>
             </div>
-            <button className="btn-secondary px-4 py-2 text-sm rounded-lg border-gray-200">
-              Generate Key
+            <button
+              onClick={handleGenerateKey}
+              disabled={generatingKey}
+              className="btn-secondary px-4 py-2 text-sm rounded-lg border-gray-200 disabled:opacity-50"
+            >
+              {generatingKey ? 'Generating...' : 'Generate Key'}
             </button>
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-4 mb-4 border-b border-gray-200">
           <button
             onClick={() => setActiveTab('claimed')}
@@ -161,36 +184,37 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* Bounty List */}
-        <div className="space-y-3">
-          {filteredBounties.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              No {activeTab} bounties yet
-            </div>
-          ) : (
-            filteredBounties.map((bounty) => (
-              <div
-                key={bounty.id}
-                className="bg-white border border-gray-200 rounded-xl p-4 flex justify-between items-center"
-              >
-                <div>
-                  <div className="font-medium text-gray-900">{bounty.title}</div>
-                  <div className="text-sm text-gray-500">
-                    {new Date(bounty.created_at).toLocaleDateString()}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-lg font-bold text-green-600">
-                    ${bounty.reward.toFixed(2)}
-                  </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full badge-${bounty.status}`}>
-                    {bounty.status}
-                  </span>
-                </div>
+        {loading ? (
+          <div className="text-center py-12 text-gray-500">Loading...</div>
+        ) : (
+          <div className="space-y-3">
+            {filteredBounties.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                No {activeTab} bounties yet
               </div>
-            ))
-          )}
-        </div>
+            ) : (
+              filteredBounties.map((bounty) => (
+                <div
+                  key={bounty.id}
+                  className="bg-white border border-gray-200 rounded-xl p-4 flex justify-between items-center"
+                >
+                  <div>
+                    <div className="font-medium text-gray-900">{bounty.title}</div>
+                    <div className="text-sm text-gray-500">
+                      {new Date(bounty.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-green-600">${bounty.reward.toFixed(2)}</div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full badge-${bounty.status}`}>
+                      {bounty.status}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </main>
     </div>
   );

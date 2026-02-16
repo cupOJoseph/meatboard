@@ -1,0 +1,63 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  address   String   @unique
+  email     String?
+  apiKeys   ApiKey[]
+  bounties  Bounty[] @relation("AgentBounties")
+  claims    Bounty[] @relation("ClaimerBounties")
+  createdAt DateTime @default(now())
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  label     String?
+  createdAt DateTime @default(now())
+}
+
+model Bounty {
+  id             String    @id @default(cuid())
+  onchainId      String?   @unique
+  title          String
+  description    String?
+  token          String    @default("0xaf88d065e77c8cC2239327C5EDb3A432268e5831")
+  reward         Float
+  deadline       String
+  expiresAt      DateTime
+  proofType      String    @default("photo")
+  locationLat    Float?
+  locationLng    Float?
+  locationRadius Float?
+  status         String    @default("open")
+
+  agentId   String
+  agent     User   @relation("AgentBounties", fields: [agentId], references: [id])
+
+  claimerId String?
+  claimer   User?   @relation("ClaimerBounties", fields: [claimerId], references: [id])
+  claimedAt DateTime?
+
+  proofUrl    String?
+  proofNote   String?
+  submittedAt DateTime?
+
+  escrowTx  String?
+  payoutTx  String?
+
+  webhookUrl String?
+
+  createdAt  DateTime  @default(now())
+  verifiedAt DateTime?
+  paidAt     DateTime?
+}
