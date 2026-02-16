@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 contract MeatboardEscrow is Ownable2Step {
     using SafeERC20 for IERC20;
 
-    enum Status { Open, Claimed, Submitted, Paid, Cancelled }
+    enum Status { Open, Claimed, Submitted, Paid, Cancelled, Rejected, Disputed }
 
     struct Bounty {
         address agent;
@@ -22,11 +22,25 @@ contract MeatboardEscrow is Ownable2Step {
         uint256 submittedAt;
     }
 
+    struct Dispute {
+        address initiator;
+        uint256 bond;
+        string evidenceURI;
+        uint256 filedAt;
+        bool resolved;
+    }
+
     uint256 public bountyCount;
     mapping(uint256 => Bounty) public bounties;
+    mapping(uint256 => Dispute) public disputes;
+
     uint256 public feeBps = 500; // 5%
     address public feeRecipient;
     uint256 public constant REVIEW_TIMEOUT = 72 hours;
+    uint256 public constant DISPUTE_WINDOW = 48 hours;
+
+    address public arbitrator;
+    uint256 public disputeBondBps = 500; // 5% of bounty as dispute bond
 
     event BountyCreated(
         uint256 indexed id,
@@ -40,10 +54,13 @@ contract MeatboardEscrow is Ownable2Step {
     event BountySubmitted(uint256 indexed id, string proofURI);
     event BountyPaid(uint256 indexed id, address indexed claimer, uint256 payout, uint256 fee);
     event BountyCancelled(uint256 indexed id);
-    event BountyRejected(uint256 indexed id);
+    event BountyRejected(uint256 indexed id, string reason);
+    event BountyDisputed(uint256 indexed id, address indexed claimer, uint256 bond, string evidenceURI);
+    event DisputeResolved(uint256 indexed id, bool claimerWins, uint256 bond);
 
     constructor(address _feeRecipient) Ownable(msg.sender) {
         feeRecipient = _feeRecipient;
+        arbitrator = msg.sender;
     }
 
     function createBounty(
@@ -97,25 +114,62 @@ contract MeatboardEscrow is Ownable2Step {
         require(b.status == Status.Submitted, "not submitted");
         require(msg.sender == b.agent, "not agent");
 
-        b.status = Status.Paid;
-        uint256 fee = (b.amount * feeBps) / 10000;
-        uint256 payout = b.amount - fee;
-
-        IERC20(b.token).safeTransfer(b.claimer, payout);
-        if (fee > 0) IERC20(b.token).safeTransfer(feeRecipient, fee);
-
-        emit BountyPaid(id, b.claimer, payout, fee);
+        _payOut(id);
     }
 
-    function rejectBounty(uint256 id) external {
+    function rejectBounty(uint256 id, string calldata reason) external {
         Bounty storage b = bounties[id];
         require(b.status == Status.Submitted, "not submitted");
         require(msg.sender == b.agent, "not agent");
 
-        b.status = Status.Open;
-        b.claimer = address(0);
-        b.submittedAt = 0;
-        emit BountyRejected(id);
+        b.status = Status.Rejected;
+        b.submittedAt = block.timestamp; // reuse as rejectedAt for dispute window
+        emit BountyRejected(id, reason);
+    }
+
+    function disputeBounty(uint256 id, string calldata evidenceURI) external {
+        Bounty storage b = bounties[id];
+        require(b.status == Status.Rejected, "not rejected");
+        require(msg.sender == b.claimer, "not claimer");
+        require(block.timestamp <= b.submittedAt + DISPUTE_WINDOW, "dispute window closed");
+
+        uint256 bond = (b.amount * disputeBondBps) / 10000;
+        require(bond > 0, "bond is zero");
+
+        IERC20(b.token).safeTransferFrom(msg.sender, address(this), bond);
+
+        b.status = Status.Disputed;
+        disputes[id] = Dispute({
+            initiator: msg.sender,
+            bond: bond,
+            evidenceURI: evidenceURI,
+            filedAt: block.timestamp,
+            resolved: false
+        });
+
+        emit BountyDisputed(id, msg.sender, bond, evidenceURI);
+    }
+
+    function resolveDispute(uint256 id, bool claimerWins) external {
+        require(msg.sender == arbitrator, "not arbitrator");
+        Bounty storage b = bounties[id];
+        require(b.status == Status.Disputed, "not disputed");
+
+        Dispute storage d = disputes[id];
+        require(!d.resolved, "already resolved");
+        d.resolved = true;
+
+        if (claimerWins) {
+            _payOut(id);
+            IERC20(b.token).safeTransfer(d.initiator, d.bond);
+        } else {
+            b.status = Status.Cancelled;
+            IERC20(b.token).safeTransfer(b.agent, b.amount);
+            IERC20(b.token).safeTransfer(b.agent, d.bond);
+            emit BountyCancelled(id);
+        }
+
+        emit DisputeResolved(id, claimerWins, d.bond);
     }
 
     function claimTimeout(uint256 id) external {
@@ -124,14 +178,7 @@ contract MeatboardEscrow is Ownable2Step {
         require(msg.sender == b.claimer, "not claimer");
         require(block.timestamp >= b.submittedAt + REVIEW_TIMEOUT, "review period active");
 
-        b.status = Status.Paid;
-        uint256 fee = (b.amount * feeBps) / 10000;
-        uint256 payout = b.amount - fee;
-
-        IERC20(b.token).safeTransfer(b.claimer, payout);
-        if (fee > 0) IERC20(b.token).safeTransfer(feeRecipient, fee);
-
-        emit BountyPaid(id, b.claimer, payout, fee);
+        _payOut(id);
     }
 
     function cancelBounty(uint256 id) external {
@@ -139,13 +186,24 @@ contract MeatboardEscrow is Ownable2Step {
         require(
             (b.status == Status.Open && msg.sender == b.agent) ||
             (b.status == Status.Open && block.timestamp >= b.deadline) ||
-            (b.status == Status.Claimed && block.timestamp >= b.deadline),
+            (b.status == Status.Claimed && block.timestamp >= b.deadline) ||
+            (b.status == Status.Rejected && block.timestamp > b.submittedAt + DISPUTE_WINDOW),
             "cannot cancel"
         );
 
         b.status = Status.Cancelled;
         IERC20(b.token).safeTransfer(b.agent, b.amount);
         emit BountyCancelled(id);
+    }
+
+    function setArbitrator(address _arbitrator) external onlyOwner {
+        require(_arbitrator != address(0), "zero address");
+        arbitrator = _arbitrator;
+    }
+
+    function setDisputeBondBps(uint256 _disputeBondBps) external onlyOwner {
+        require(_disputeBondBps <= 1000, "bond too high");
+        disputeBondBps = _disputeBondBps;
     }
 
     function setFeeBps(uint256 _feeBps) external onlyOwner {
@@ -156,5 +214,17 @@ contract MeatboardEscrow is Ownable2Step {
     function setFeeRecipient(address _feeRecipient) external onlyOwner {
         require(_feeRecipient != address(0), "zero address");
         feeRecipient = _feeRecipient;
+    }
+
+    function _payOut(uint256 id) internal {
+        Bounty storage b = bounties[id];
+        b.status = Status.Paid;
+        uint256 fee = (b.amount * feeBps) / 10000;
+        uint256 payout = b.amount - fee;
+
+        IERC20(b.token).safeTransfer(b.claimer, payout);
+        if (fee > 0) IERC20(b.token).safeTransfer(feeRecipient, fee);
+
+        emit BountyPaid(id, b.claimer, payout, fee);
     }
 }
