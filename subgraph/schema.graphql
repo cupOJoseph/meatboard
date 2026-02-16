@@ -1,0 +1,51 @@
+type Bounty @entity {
+  id: ID!
+  onchainId: BigInt!
+  title: String!
+  description: String
+  reward: BigInt!
+  token: Bytes!
+  deadline: String!
+  expiresAt: BigInt!
+  proofType: String!
+  locationLat: BigDecimal
+  locationLng: BigDecimal
+  locationRadius: BigDecimal
+  status: String!
+  agent: Bytes!
+  claimer: Bytes
+  claimedAt: BigInt
+  proofUrl: String
+  submittedAt: BigInt
+  escrowTx: Bytes
+  payoutTx: Bytes
+  createdAt: BigInt!
+  verifiedAt: BigInt
+  paidAt: BigInt
+  metadataURI: String
+  rejectedAt: BigInt
+  rejectedReason: String
+  disputeInitiator: Bytes
+  disputeBond: BigInt
+  disputeEvidenceURI: String
+  disputeFiledAt: BigInt
+  disputeResolved: Boolean
+  disputeClaimerWon: Boolean
+}
+
+type AgentStats @entity {
+  id: ID! # agent address
+  totalBounties: Int!
+  totalSpent: BigInt!
+  activeBounties: Int!
+  completedBounties: Int!
+  cancelledBounties: Int!
+}
+
+type ClaimerStats @entity {
+  id: ID! # claimer address
+  totalClaimed: Int!
+  totalEarned: BigInt!
+  completedBounties: Int!
+  activeClaims: Int!
+}

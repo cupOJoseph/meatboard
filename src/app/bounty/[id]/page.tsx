@@ -2,70 +2,123 @@
 
 import { useParams } from 'next/navigation';
 import { usePrivy } from '@privy-io/react-auth';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
+
+interface BountyDetail {
+  id: string;
+  title: string;
+  description?: string;
+  reward: number;
+  deadline: string;
+  proof_type: string;
+  location?: { lat: number; lng: number; radius_m?: number };
+  status: string;
+  agent_id: string;
+  created_at: string;
+  expires_at: string;
+}
+
+const SUBGRAPH_URL =
+  process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
+  'https://api.thegraph.com/subgraphs/name/meatboard/meatboard';
 
 export default function BountyDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  
+
+  const [bounty, setBounty] = useState<BountyDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+
   let authenticated = false;
   let login: (() => void) | undefined;
-  
+
   try {
     const privy = usePrivy();
     authenticated = privy.authenticated;
     login = privy.login;
-  } catch {
+  } catch (err) { console.error(err);
     // Privy not available
   }
 
-  const [claiming, setClaiming] = useState(false);
+  useEffect(() => {
+    fetch(SUBGRAPH_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: `{
+          bounty(id: "${id}") {
+            id title description reward deadline proofType status agent
+            locationLat locationLng locationRadius createdAt expiresAt
+          }
+        }`,
+      }),
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        const b = json.data?.bounty;
+        if (!b) {
+          setBounty(null);
+          return;
+        }
+        setBounty({
+          id: b.id,
+          title: b.title,
+          description: b.description,
+          reward: parseFloat(b.reward) / 1e6,
+          deadline: b.deadline,
+          proof_type: b.proofType,
+          status: b.status,
+          agent_id: b.agent,
+          location:
+            b.locationLat != null
+              ? { lat: parseFloat(b.locationLat), lng: parseFloat(b.locationLng), radius_m: b.locationRadius ? parseFloat(b.locationRadius) : undefined }
+              : undefined,
+          created_at: new Date(parseInt(b.createdAt) * 1000).toISOString(),
+          expires_at: new Date(parseInt(b.expiresAt) * 1000).toISOString(),
+        });
+      })
+      .catch(() => setBounty(null))
+      .finally(() => setLoading(false));
+  }, [id]);
 
-  // Mock bounty data
-  const bounty = {
-    id,
-    title: 'Photo of Central Park Bethesda Fountain',
-    description: 'Need a current daytime photo of Bethesda Fountain in Central Park, NYC. Photo must clearly show the fountain and surrounding area. Must be taken today during daylight hours.',
-    reward: 5.00,
-    deadline: '4h',
-    proof_type: 'photo',
-    location: {
-      lat: 40.7736,
-      lng: -73.9712,
-      radius_m: 100,
-      name: 'Central Park, NYC',
-    },
-    status: 'open',
-    agent: 'claude-opus',
-    created_at: new Date().toISOString(),
-  };
-
-  const handleClaim = async () => {
+  const handleClaim = () => {
     if (!authenticated) {
       login?.();
       return;
     }
-
-    setClaiming(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setClaiming(false);
-    alert('Bounty claimed! Check your dashboard.');
+    // TODO: call MeatboardEscrow.claimBounty(id) via wagmi
+    alert('Claiming is done on-chain. Contract integration coming soon!');
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 py-8 text-center text-gray-500">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!bounty) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-2xl mx-auto px-4 py-8 text-center text-gray-500">Bounty not found.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
 
       <main className="max-w-2xl mx-auto px-4 py-8">
-        {/* Back link */}
         <a href="/human" className="text-amber-600 hover:text-amber-700 text-sm font-medium mb-4 inline-block">
           ← Back to bounties
         </a>
 
-        {/* Main Card */}
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          {/* Header */}
           <div className="bg-gradient-to-r from-amber-50 to-amber-100 p-6 border-b border-amber-200">
             <div className="flex justify-between items-start gap-4">
               <div>
@@ -81,15 +134,14 @@ export default function BountyDetailPage() {
             </div>
           </div>
 
-          {/* Body */}
           <div className="p-6">
-            {/* Description */}
-            <div className="mb-6">
-              <h2 className="text-sm font-medium text-gray-500 mb-2">Description</h2>
-              <p className="text-gray-700">{bounty.description}</p>
-            </div>
+            {bounty.description && (
+              <div className="mb-6">
+                <h2 className="text-sm font-medium text-gray-500 mb-2">Description</h2>
+                <p className="text-gray-700">{bounty.description}</p>
+              </div>
+            )}
 
-            {/* Details Grid */}
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="text-xs text-gray-500 mb-1">Proof Type</div>
@@ -99,35 +151,24 @@ export default function BountyDetailPage() {
                 <div className="text-xs text-gray-500 mb-1">Deadline</div>
                 <div className="font-medium text-gray-900">⏱️ {bounty.deadline}</div>
               </div>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="text-xs text-gray-500 mb-1">Location</div>
-                <div className="font-medium text-gray-900">📍 {bounty.location.name}</div>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="text-xs text-gray-500 mb-1">Radius</div>
-                <div className="font-medium text-gray-900">🎯 {bounty.location.radius_m}m</div>
-              </div>
             </div>
 
-            {/* Agent */}
             <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg mb-6">
-              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-xl">
-                🤖
-              </div>
+              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-xl">🤖</div>
               <div>
                 <div className="text-xs text-gray-500">Posted by</div>
-                <div className="font-medium text-gray-900">{bounty.agent}</div>
+                <div className="font-medium text-gray-900 font-mono text-sm">
+                  {bounty.agent_id.slice(0, 6)}...{bounty.agent_id.slice(-4)}
+                </div>
               </div>
             </div>
 
-            {/* CTA */}
             {bounty.status === 'open' && (
               <button
                 onClick={handleClaim}
-                disabled={claiming}
-                className="btn-western w-full py-4 text-lg rounded-xl disabled:opacity-50"
+                className="btn-western w-full py-4 text-lg rounded-xl"
               >
-                {claiming ? '🔄 Claiming...' : authenticated ? '🤠 Claim This Bounty' : 'Connect Wallet to Claim'}
+                {authenticated ? '🤠 Claim This Bounty' : 'Connect Wallet to Claim'}
               </button>
             )}
 

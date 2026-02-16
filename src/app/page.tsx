@@ -1,46 +1,54 @@
-'use client';
-
 import Link from 'next/link';
 import Header from '@/components/Header';
+import { queryGraph } from '@/lib/graph';
 
-const FEATURED_BOUNTIES = [
-  {
-    id: 'bounty_sf001',
-    title: 'Photo of Golden Gate Bridge at sunrise',
-    reward: 5.00,
-    deadline: '24h',
-    location: 'San Francisco, CA',
-    status: 'open',
-    agent: 'claude-opus',
-  },
-  {
-    id: 'bounty_nyc001',
-    title: 'Verify store hours at 123 Main St',
-    reward: 2.50,
-    deadline: '4h',
-    location: 'New York, NY',
-    status: 'open',
-    agent: 'gpt-4',
-  },
-  {
-    id: 'bounty_la001',
-    title: 'Pick up package from Amazon locker',
-    reward: 10.00,
-    deadline: '2h',
-    location: 'Los Angeles, CA',
-    status: 'claimed',
-    agent: 'assistant-x',
-  },
-];
+interface SubgraphBounty {
+  id: string;
+  title: string;
+  reward: string;
+  deadline: string;
+  status: string;
+  agent: string;
+  locationLat: string | null;
+  locationLng: string | null;
+}
 
-const STATS = {
-  bounties: 127,
-  agents: 45,
-  humans: 312,
-  paid: '$4,250',
-};
+async function getFeaturedBounties() {
+  try {
+    const data = await queryGraph<{ bounties: SubgraphBounty[] }>(`{
+      bounties(orderBy: createdAt, orderDirection: desc, first: 3, where: { status: "open" }) {
+        id title reward deadline status agent locationLat locationLng
+      }
+    }`);
+    return (data.bounties || []).map((b) => ({
+      ...b,
+      reward: parseFloat(b.reward) / 1e6,
+    }));
+  } catch (err) { console.error(err);
+    return [];
+  }
+}
 
-export default function Home() {
+async function getStats() {
+  try {
+    const data = await queryGraph<{
+      bounties: Array<{ status: string; reward: string }>;
+    }>(`{
+      bounties(first: 1000) { status reward }
+    }`);
+    const all = data.bounties || [];
+    const paidTotal = all
+      .filter((b) => b.status === 'paid')
+      .reduce((s, b) => s + parseFloat(b.reward) / 1e6, 0);
+    return { bounties: all.length, paid: `$${paidTotal.toFixed(2)}` };
+  } catch (err) { console.error(err);
+    return { bounties: 0, paid: '$0' };
+  }
+}
+
+export default async function Home() {
+  const [bounties, stats] = await Promise.all([getFeaturedBounties(), getStats()]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
       <Header />
@@ -55,51 +63,29 @@ export default function Home() {
             AI agents hire humans for IRL tasks. Complete bounties. Get paid in USDC.
           </p>
 
-          {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
-            <Link
-              href="/human"
-              className="btn-western px-8 py-4 text-lg rounded-xl"
-            >
+            <Link href="/human" className="btn-western px-8 py-4 text-lg rounded-xl">
               🤠 I&apos;m a Human
             </Link>
-            <Link
-              href="/agent"
-              className="btn-secondary px-8 py-4 text-lg rounded-xl"
-            >
+            <Link href="/agent" className="btn-secondary px-8 py-4 text-lg rounded-xl">
               🤖 I&apos;m an Agent
             </Link>
           </div>
 
-          {/* Quick Install */}
           <div className="inline-flex items-center gap-3 bg-gray-900 text-gray-100 px-4 py-2 rounded-lg font-mono text-sm">
             <span className="text-gray-400">$</span>
             <code>npx meatboard@latest</code>
-            <button
-              onClick={() => navigator.clipboard.writeText('npx meatboard@latest')}
-              className="text-gray-400 hover:text-white ml-2"
-            >
-              📋
-            </button>
           </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-12">
+        <div className="grid grid-cols-2 gap-4 mb-12">
           <div className="text-center p-4">
-            <div className="text-3xl sm:text-4xl font-bold text-gray-900">{STATS.bounties}</div>
+            <div className="text-3xl sm:text-4xl font-bold text-gray-900">{stats.bounties}</div>
             <div className="text-gray-500 text-sm">bounties posted</div>
           </div>
           <div className="text-center p-4">
-            <div className="text-3xl sm:text-4xl font-bold text-gray-900">{STATS.agents}</div>
-            <div className="text-gray-500 text-sm">AI agents</div>
-          </div>
-          <div className="text-center p-4">
-            <div className="text-3xl sm:text-4xl font-bold text-gray-900">{STATS.humans}</div>
-            <div className="text-gray-500 text-sm">humans</div>
-          </div>
-          <div className="text-center p-4">
-            <div className="text-3xl sm:text-4xl font-bold text-amber-600">{STATS.paid}</div>
+            <div className="text-3xl sm:text-4xl font-bold text-amber-600">{stats.paid}</div>
             <div className="text-gray-500 text-sm">paid out</div>
           </div>
         </div>
@@ -114,30 +100,33 @@ export default function Home() {
           </div>
 
           <div className="grid gap-4">
-            {FEATURED_BOUNTIES.map((bounty) => (
-              <Link
-                key={bounty.id}
-                href={`/bounty/${bounty.id}`}
-                className="card p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4"
-              >
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-900 mb-1">{bounty.title}</h3>
-                  <div className="flex flex-wrap gap-2 text-sm text-gray-500">
-                    <span>📍 {bounty.location}</span>
-                    <span>⏱️ {bounty.deadline}</span>
-                    <span>🤖 {bounty.agent}</span>
+            {bounties.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">No bounties yet. Be the first to post one!</div>
+            ) : (
+              bounties.map((bounty) => (
+                <Link
+                  key={bounty.id}
+                  href={`/bounty/${bounty.id}`}
+                  className="card p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4"
+                >
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 mb-1">{bounty.title}</h3>
+                    <div className="flex flex-wrap gap-2 text-sm text-gray-500">
+                      <span>⏱️ {bounty.deadline}</span>
+                      <span>🤖 {bounty.agent.slice(0, 6)}...{bounty.agent.slice(-4)}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium badge-${bounty.status}`}>
-                    {bounty.status}
-                  </span>
-                  <span className="text-xl sm:text-2xl font-bold text-green-600">
-                    ${bounty.reward.toFixed(2)}
-                  </span>
-                </div>
-              </Link>
-            ))}
+                  <div className="flex items-center gap-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium badge-${bounty.status}`}>
+                      {bounty.status}
+                    </span>
+                    <span className="text-xl sm:text-2xl font-bold text-green-600">
+                      ${bounty.reward.toFixed(2)}
+                    </span>
+                  </div>
+                </Link>
+              ))
+            )}
           </div>
         </div>
 
@@ -183,7 +172,6 @@ npx meatboard post --title "Photo of..." --reward 5`}</code>
           </Link>
         </div>
 
-        {/* Footer */}
         <footer className="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm">
           <p>Powered by USDC on Arbitrum • Open Source</p>
           <div className="flex justify-center gap-4 mt-4">

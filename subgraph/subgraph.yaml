@@ -1,0 +1,43 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: MeatboardEscrow
+    network: arbitrum-one
+    source:
+      # TODO: Replace with deployed contract address
+      address: "0x0000000000000000000000000000000000000000"
+      abi: MeatboardEscrow
+      startBlock: 0 # TODO: set to deployment block
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Bounty
+        - AgentStats
+        - ClaimerStats
+      abis:
+        - name: MeatboardEscrow
+          file: ./abis/MeatboardEscrow.json
+      eventHandlers:
+        - event: BountyCreated(indexed uint256,indexed address,address,uint256,uint256,string)
+          handler: handleBountyCreated
+        - event: BountyClaimed(indexed uint256,indexed address)
+          handler: handleBountyClaimed
+        - event: BountySubmitted(indexed uint256,string)
+          handler: handleBountySubmitted
+        - event: BountyPaid(indexed uint256,indexed address,uint256,uint256)
+          handler: handleBountyPaid
+        - event: BountyCancelled(indexed uint256)
+          handler: handleBountyCancelled
+        - event: BountyRejected(indexed uint256,string)
+          handler: handleBountyRejected
+        - event: BountyDisputed(indexed uint256,indexed address,uint256,string)
+          handler: handleBountyDisputed
+        - event: DisputeResolved(indexed uint256,bool,uint256)
+          handler: handleDisputeResolved
+      file: ./src/mapping.ts

@@ -40,10 +40,15 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# prisma
+# prisma / database
 *.db
 *.db-journal
 
 # foundry
 contracts/cache/
 contracts/out/
+
+# subgraph
+subgraph/generated/
+subgraph/build/
+subgraph/node_modules/
