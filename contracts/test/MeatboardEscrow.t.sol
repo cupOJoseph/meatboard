@@ -55,7 +55,7 @@ contract MeatboardEscrowTest is Test {
         assertEq(escrow.bountyCount(), 1);
         assertEq(token.balanceOf(address(escrow)), AMOUNT);
 
-        (address a,,address t, uint256 amt, uint256 dl, MeatboardEscrow.Status s, string memory uri) = escrow.bounties(id);
+        (address a,,address t, uint256 amt, uint256 dl, MeatboardEscrow.Status s, string memory uri,) = escrow.bounties(id);
         assertEq(a, agent);
         assertEq(t, address(token));
         assertEq(amt, AMOUNT);
@@ -83,7 +83,7 @@ contract MeatboardEscrowTest is Test {
         vm.prank(claimer);
         escrow.claimBounty(id);
 
-        (,address c,,,,MeatboardEscrow.Status s,) = escrow.bounties(id);
+        (,address c,,,,MeatboardEscrow.Status s,,) = escrow.bounties(id);
         assertEq(c, claimer);
         assertEq(uint8(s), uint8(MeatboardEscrow.Status.Claimed));
     }
@@ -107,6 +107,13 @@ contract MeatboardEscrowTest is Test {
         escrow.claimBounty(id);
     }
 
+    function test_claimBounty_agentCannotSelfClaim() public {
+        uint256 id = _createBounty();
+        vm.prank(agent);
+        vm.expectRevert("agent cannot claim own bounty");
+        escrow.claimBounty(id);
+    }
+
     // --- submitProof ---
 
     function test_submitProof() public {
@@ -117,8 +124,9 @@ contract MeatboardEscrowTest is Test {
         vm.prank(claimer);
         escrow.submitProof(id, "ipfs://proof");
 
-        (,,,,,MeatboardEscrow.Status s,) = escrow.bounties(id);
+        (,,,,,MeatboardEscrow.Status s,, uint256 submittedAt) = escrow.bounties(id);
         assertEq(uint8(s), uint8(MeatboardEscrow.Status.Submitted));
+        assertEq(submittedAt, block.timestamp);
     }
 
     function test_submitProof_notClaimed() public {
@@ -147,7 +155,7 @@ contract MeatboardEscrowTest is Test {
         vm.prank(claimer);
         escrow.submitProof(id, "ipfs://proof");
 
-        uint256 expectedFee = (AMOUNT * 500) / 10000; // 5%
+        uint256 expectedFee = (AMOUNT * 500) / 10000;
         uint256 expectedPayout = AMOUNT - expectedFee;
 
         vm.prank(agent);
@@ -157,7 +165,7 @@ contract MeatboardEscrowTest is Test {
         assertEq(token.balanceOf(feeRecipient), expectedFee);
         assertEq(token.balanceOf(address(escrow)), 0);
 
-        (,,,,,MeatboardEscrow.Status s,) = escrow.bounties(id);
+        (,,,,,MeatboardEscrow.Status s,,) = escrow.bounties(id);
         assertEq(uint8(s), uint8(MeatboardEscrow.Status.Paid));
     }
 
@@ -180,6 +188,114 @@ contract MeatboardEscrowTest is Test {
         escrow.releaseBounty(id);
     }
 
+    // --- rejectBounty ---
+
+    function test_rejectBounty() public {
+        uint256 id = _createBounty();
+        vm.prank(claimer);
+        escrow.claimBounty(id);
+        vm.prank(claimer);
+        escrow.submitProof(id, "ipfs://proof");
+
+        vm.prank(agent);
+        escrow.rejectBounty(id);
+
+        (,address c,,,,MeatboardEscrow.Status s,,) = escrow.bounties(id);
+        assertEq(uint8(s), uint8(MeatboardEscrow.Status.Open));
+        assertEq(c, address(0));
+    }
+
+    function test_rejectBounty_notSubmitted() public {
+        uint256 id = _createBounty();
+        vm.prank(agent);
+        vm.expectRevert("not submitted");
+        escrow.rejectBounty(id);
+    }
+
+    function test_rejectBounty_notAgent() public {
+        uint256 id = _createBounty();
+        vm.prank(claimer);
+        escrow.claimBounty(id);
+        vm.prank(claimer);
+        escrow.submitProof(id, "ipfs://proof");
+
+        vm.prank(stranger);
+        vm.expectRevert("not agent");
+        escrow.rejectBounty(id);
+    }
+
+    function test_rejectBounty_thenReclaimable() public {
+        uint256 id = _createBounty();
+        vm.prank(claimer);
+        escrow.claimBounty(id);
+        vm.prank(claimer);
+        escrow.submitProof(id, "ipfs://proof");
+
+        vm.prank(agent);
+        escrow.rejectBounty(id);
+
+        // Another user can now claim
+        vm.prank(stranger);
+        escrow.claimBounty(id);
+
+        (,address c,,,,MeatboardEscrow.Status s,,) = escrow.bounties(id);
+        assertEq(c, stranger);
+        assertEq(uint8(s), uint8(MeatboardEscrow.Status.Claimed));
+    }
+
+    // --- claimTimeout ---
+
+    function test_claimTimeout() public {
+        uint256 id = _createBounty();
+        vm.prank(claimer);
+        escrow.claimBounty(id);
+        vm.prank(claimer);
+        escrow.submitProof(id, "ipfs://proof");
+
+        // Warp past review timeout
+        vm.warp(block.timestamp + 72 hours + 1);
+
+        uint256 expectedFee = (AMOUNT * 500) / 10000;
+        uint256 expectedPayout = AMOUNT - expectedFee;
+
+        vm.prank(claimer);
+        escrow.claimTimeout(id);
+
+        assertEq(token.balanceOf(claimer), expectedPayout);
+        assertEq(token.balanceOf(feeRecipient), expectedFee);
+
+        (,,,,,MeatboardEscrow.Status s,,) = escrow.bounties(id);
+        assertEq(uint8(s), uint8(MeatboardEscrow.Status.Paid));
+    }
+
+    function test_claimTimeout_tooEarly() public {
+        uint256 id = _createBounty();
+        vm.prank(claimer);
+        escrow.claimBounty(id);
+        vm.prank(claimer);
+        escrow.submitProof(id, "ipfs://proof");
+
+        vm.warp(block.timestamp + 72 hours - 1);
+
+        vm.prank(claimer);
+        vm.expectRevert("review period active");
+        escrow.claimTimeout(id);
+    }
+
+    function test_claimTimeout_notClaimer() public {
+        uint256 id = _createBounty();
+        vm.prank(claimer);
+        escrow.claimBounty(id);
+        vm.prank(claimer);
+        escrow.submitProof(id, "ipfs://proof");
+
+        vm.warp(block.timestamp + 72 hours + 1);
+
+        vm.prank(stranger);
+        vm.expectRevert("not claimer");
+        escrow.claimTimeout(id);
+    }
+
     // --- cancelBounty ---
 
     function test_cancelBounty_byAgent() public {
@@ -190,7 +306,7 @@ contract MeatboardEscrowTest is Test {
         escrow.cancelBounty(id);
 
         assertEq(token.balanceOf(agent), balBefore + AMOUNT);
-        (,,,,,MeatboardEscrow.Status s,) = escrow.bounties(id);
+        (,,,,,MeatboardEscrow.Status s,,) = escrow.bounties(id);
         assertEq(uint8(s), uint8(MeatboardEscrow.Status.Cancelled));
     }
 
@@ -201,7 +317,7 @@ contract MeatboardEscrowTest is Test {
         vm.prank(stranger);
         escrow.cancelBounty(id);
 
-        (,,,,,MeatboardEscrow.Status s,) = escrow.bounties(id);
+        (,,,,,MeatboardEscrow.Status s,,) = escrow.bounties(id);
         assertEq(uint8(s), uint8(MeatboardEscrow.Status.Cancelled));
     }
 
@@ -214,8 +330,7 @@ contract MeatboardEscrowTest is Test {
         vm.prank(stranger);
         escrow.cancelBounty(id);
 
-        assertEq(token.balanceOf(agent), token.balanceOf(agent)); // refund to agent
-        (,,,,,MeatboardEscrow.Status s,) = escrow.bounties(id);
+        (,,,,,MeatboardEscrow.Status s,,) = escrow.bounties(id);
         assertEq(uint8(s), uint8(MeatboardEscrow.Status.Cancelled));
     }
 
@@ -243,7 +358,6 @@ contract MeatboardEscrowTest is Test {
     // --- Fee logic ---
 
     function test_feeCalculation() public {
-        // 5% of 1000e18 = 50e18
         uint256 id = _createBounty();
         vm.prank(claimer);
         escrow.claimBounty(id);
@@ -285,7 +399,7 @@ contract MeatboardEscrowTest is Test {
 
     function test_setFeeBps_notOwner() public {
         vm.prank(stranger);
-        vm.expectRevert("not owner");
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", stranger));
         escrow.setFeeBps(100);
     }
 
@@ -301,7 +415,19 @@ contract MeatboardEscrowTest is Test {
 
     function test_setFeeRecipient_notOwner() public {
         vm.prank(stranger);
-        vm.expectRevert("not owner");
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", stranger));
         escrow.setFeeRecipient(stranger);
+    }
+
+    // --- Ownable2Step ---
+
+    function test_transferOwnership_twoStep() public {
+        escrow.transferOwnership(stranger);
+        // Still owner until accepted
+        assertEq(escrow.owner(), owner);
+
+        vm.prank(stranger);
+        escrow.acceptOwnership();
+        assertEq(escrow.owner(), stranger);
     }
 }

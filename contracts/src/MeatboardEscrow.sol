@@ -3,8 +3,10 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract MeatboardEscrow {
+contract MeatboardEscrow is Ownable2Step {
     using SafeERC20 for IERC20;
 
     enum Status { Open, Claimed, Submitted, Paid, Cancelled }
@@ -17,13 +19,14 @@ contract MeatboardEscrow {
         uint256 deadline;
         Status status;
         string metadataURI;
+        uint256 submittedAt;
     }
 
     uint256 public bountyCount;
     mapping(uint256 => Bounty) public bounties;
     uint256 public feeBps = 500; // 5%
     address public feeRecipient;
-    address public owner;
+    uint256 public constant REVIEW_TIMEOUT = 72 hours;
 
     event BountyCreated(
         uint256 indexed id,
@@ -37,14 +40,9 @@ contract MeatboardEscrow {
     event BountySubmitted(uint256 indexed id, string proofURI);
     event BountyPaid(uint256 indexed id, address indexed claimer, uint256 payout, uint256 fee);
     event BountyCancelled(uint256 indexed id);
+    event BountyRejected(uint256 indexed id);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "not owner");
-        _;
-    }
-
-    constructor(address _feeRecipient) {
-        owner = msg.sender;
+    constructor(address _feeRecipient) Ownable(msg.sender) {
         feeRecipient = _feeRecipient;
     }
 
@@ -65,7 +63,8 @@ contract MeatboardEscrow {
             amount: amount,
             deadline: deadline,
             status: Status.Open,
-            metadataURI: metadataURI
+            metadataURI: metadataURI,
+            submittedAt: 0
         });
 
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
@@ -76,6 +75,7 @@ contract MeatboardEscrow {
         Bounty storage b = bounties[id];
         require(b.status == Status.Open, "not open");
         require(block.timestamp < b.deadline, "expired");
+        require(msg.sender != b.agent, "agent cannot claim own bounty");
 
         b.status = Status.Claimed;
         b.claimer = msg.sender;
@@ -88,6 +88,7 @@ contract MeatboardEscrow {
         require(msg.sender == b.claimer, "not claimer");
 
         b.status = Status.Submitted;
+        b.submittedAt = block.timestamp;
         emit BountySubmitted(id, proofURI);
     }
 
@@ -95,6 +96,33 @@ contract MeatboardEscrow {
         Bounty storage b = bounties[id];
         require(b.status == Status.Submitted, "not submitted");
         require(msg.sender == b.agent, "not agent");
+
+        b.status = Status.Paid;
+        uint256 fee = (b.amount * feeBps) / 10000;
+        uint256 payout = b.amount - fee;
+
+        IERC20(b.token).safeTransfer(b.claimer, payout);
+        if (fee > 0) IERC20(b.token).safeTransfer(feeRecipient, fee);
+
+        emit BountyPaid(id, b.claimer, payout, fee);
+    }
+
+    function rejectBounty(uint256 id) external {
+        Bounty storage b = bounties[id];
+        require(b.status == Status.Submitted, "not submitted");
+        require(msg.sender == b.agent, "not agent");
+
+        b.status = Status.Open;
+        b.claimer = address(0);
+        b.submittedAt = 0;
+        emit BountyRejected(id);
+    }
+
+    function claimTimeout(uint256 id) external {
+        Bounty storage b = bounties[id];
+        require(b.status == Status.Submitted, "not submitted");
+        require(msg.sender == b.claimer, "not claimer");
+        require(block.timestamp >= b.submittedAt + REVIEW_TIMEOUT, "review period active");
 
         b.status = Status.Paid;
         uint256 fee = (b.amount * feeBps) / 10000;
