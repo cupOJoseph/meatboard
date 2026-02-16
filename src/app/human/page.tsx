@@ -32,7 +32,7 @@ export default function HumanPage() {
     const privy = usePrivy();
     authenticated = privy.authenticated;
     login = privy.login;
-  } catch {
+  } catch (err) { console.error(err);
     // Privy not available
   }
 
@@ -69,7 +69,7 @@ export default function HumanPage() {
           })),
         );
       })
-      .catch(() => {})
+      .catch((err) => console.error('Failed to fetch bounties:', err))
       .finally(() => setLoading(false));
   }, []);
 

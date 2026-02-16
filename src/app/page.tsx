@@ -24,7 +24,7 @@ async function getFeaturedBounties() {
       ...b,
       reward: parseFloat(b.reward) / 1e6,
     }));
-  } catch {
+  } catch (err) { console.error(err);
     return [];
   }
 }
@@ -41,7 +41,7 @@ async function getStats() {
       .filter((b) => b.status === 'paid')
       .reduce((s, b) => s + parseFloat(b.reward) / 1e6, 0);
     return { bounties: all.length, paid: `$${paidTotal.toFixed(2)}` };
-  } catch {
+  } catch (err) { console.error(err);
     return { bounties: 0, paid: '$0' };
   }
 }

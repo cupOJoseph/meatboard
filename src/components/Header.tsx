@@ -18,7 +18,7 @@ export default function Header() {
     user = privy.user;
     login = privy.login;
     logout = privy.logout;
-  } catch {
+  } catch (err) { console.error(err);
     // Privy not available
   }
 

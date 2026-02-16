@@ -7,7 +7,18 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status');
 
   try {
-    const statusFilter = status ? `, where: { status: "${status}" }` : '';
+    const query = status
+      ? `query getBounties($status: String!) {
+          bounties(orderBy: createdAt, orderDirection: desc, where: { status: $status }) {
+            id title description reward deadline proofType locationLat locationLng locationRadius status agent createdAt expiresAt escrowTx
+          }
+        }`
+      : `{
+          bounties(orderBy: createdAt, orderDirection: desc) {
+            id title description reward deadline proofType locationLat locationLng locationRadius status agent createdAt expiresAt escrowTx
+          }
+        }`;
+    const variables = status ? { status } : undefined;
     const data = await queryGraph<{
       bounties: Array<{
         id: string;
@@ -25,24 +36,7 @@ export async function GET(request: NextRequest) {
         expiresAt: string;
         escrowTx: string | null;
       }>;
-    }>(`{
-      bounties(orderBy: createdAt, orderDirection: desc${statusFilter}) {
-        id
-        title
-        description
-        reward
-        deadline
-        proofType
-        locationLat
-        locationLng
-        locationRadius
-        status
-        agent
-        createdAt
-        expiresAt
-        escrowTx
-      }
-    }`);
+    }>(query, variables);
 
     return NextResponse.json({
       bounties: (data.bounties || []).map((b) => ({

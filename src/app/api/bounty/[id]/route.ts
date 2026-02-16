@@ -32,31 +32,15 @@ export async function GET(
         verifiedAt: string | null;
         paidAt: string | null;
       } | null;
-    }>(`{
-      bounty(id: "${id}") {
-        id
-        title
-        description
-        reward
-        deadline
-        proofType
-        locationLat
-        locationLng
-        locationRadius
-        status
-        agent
-        claimer
-        claimedAt
-        proofUrl
-        submittedAt
-        escrowTx
-        payoutTx
-        createdAt
-        expiresAt
-        verifiedAt
-        paidAt
-      }
-    }`);
+    }>(
+      `query getBounty($id: ID!) {
+        bounty(id: $id) {
+          id title description reward deadline proofType locationLat locationLng locationRadius
+          status agent claimer claimedAt proofUrl submittedAt escrowTx payoutTx createdAt expiresAt verifiedAt paidAt
+        }
+      }`,
+      { id },
+    );
 
     if (!data.bounty) {
       return NextResponse.json({ error: 'Bounty not found', code: 'NOT_FOUND' }, { status: 404 });

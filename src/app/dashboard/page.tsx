@@ -35,7 +35,7 @@ export default function DashboardPage() {
     authenticated = privy.authenticated;
     ready = privy.ready;
     user = privy.user;
-  } catch {
+  } catch (err) { console.error(err);
     // Privy not available
   }
 
@@ -86,7 +86,7 @@ export default function DashboardPage() {
         }
       }
       setBounties(all);
-    } catch {
+    } catch (err) { console.error(err);
       // ignore
     } finally {
       setLoading(false);

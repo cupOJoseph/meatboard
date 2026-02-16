@@ -24,14 +24,16 @@ dataSources:
         - name: MeatboardEscrow
           file: ./abis/MeatboardEscrow.json
       eventHandlers:
-        - event: BountyCreated(indexed uint256,indexed address,uint256,string,uint256)
+        - event: BountyCreated(indexed uint256,indexed address,address,uint256,uint256,string)
           handler: handleBountyCreated
         - event: BountyClaimed(indexed uint256,indexed address)
           handler: handleBountyClaimed
         - event: BountySubmitted(indexed uint256,string)
           handler: handleBountySubmitted
-        - event: BountyPaid(indexed uint256,indexed address,uint256)
+        - event: BountyPaid(indexed uint256,indexed address,uint256,uint256)
           handler: handleBountyPaid
         - event: BountyCancelled(indexed uint256)
           handler: handleBountyCancelled
+        - event: BountyRejected(indexed uint256)
+          handler: handleBountyRejected
       file: ./src/mapping.ts

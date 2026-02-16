@@ -37,7 +37,7 @@ export default function BountyDetailPage() {
     const privy = usePrivy();
     authenticated = privy.authenticated;
     login = privy.login;
-  } catch {
+  } catch (err) { console.error(err);
     // Privy not available
   }
 
