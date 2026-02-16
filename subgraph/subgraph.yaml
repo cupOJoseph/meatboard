@@ -34,6 +34,10 @@ dataSources:
           handler: handleBountyPaid
         - event: BountyCancelled(indexed uint256)
           handler: handleBountyCancelled
-        - event: BountyRejected(indexed uint256)
+        - event: BountyRejected(indexed uint256,string)
           handler: handleBountyRejected
+        - event: BountyDisputed(indexed uint256,indexed address,uint256,string)
+          handler: handleBountyDisputed
+        - event: DisputeResolved(indexed uint256,bool,uint256)
+          handler: handleDisputeResolved
       file: ./src/mapping.ts

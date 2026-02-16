@@ -1,10 +1,13 @@
-import { BigInt, Bytes } from '@graphprotocol/graph-ts';
+import { BigInt, Bytes, Address } from '@graphprotocol/graph-ts';
 import {
   BountyCreated,
   BountyClaimed,
   BountySubmitted,
   BountyPaid,
   BountyCancelled,
+  BountyRejected,
+  BountyDisputed,
+  DisputeResolved,
 } from '../generated/MeatboardEscrow/MeatboardEscrow';
 import { Bounty, AgentStats, ClaimerStats } from '../generated/schema';
 
@@ -36,59 +39,59 @@ function getOrCreateClaimerStats(address: Bytes): ClaimerStats {
 }
 
 export function handleBountyCreated(event: BountyCreated): void {
-  let bountyId = event.params.param0.toString();
+  let bountyId = event.params.id.toString();
   let bounty = new Bounty(bountyId);
 
-  bounty.onchainId = event.params.param0;
-  bounty.agent = event.params.param1;
-  bounty.reward = event.params.param2;
-  bounty.metadataURI = event.params.param3;
-  bounty.expiresAt = event.params.param4;
+  bounty.onchainId = event.params.id;
+  bounty.agent = event.params.agent;
+  bounty.reward = event.params.amount;
+  bounty.metadataURI = event.params.metadataURI;
+  bounty.expiresAt = event.params.deadline;
   bounty.status = 'open';
   bounty.title = ''; // Will be populated from metadata
   bounty.deadline = '';
   bounty.proofType = 'photo';
-  bounty.token = Bytes.fromHexString('0xaf88d065e77c8cC2239327C5EDb3A432268e5831');
+  bounty.token = event.params.token;
   bounty.createdAt = event.block.timestamp;
   bounty.escrowTx = event.transaction.hash;
   bounty.save();
 
-  let agentStats = getOrCreateAgentStats(event.params.param1);
+  let agentStats = getOrCreateAgentStats(event.params.agent);
   agentStats.totalBounties += 1;
   agentStats.activeBounties += 1;
-  agentStats.totalSpent = agentStats.totalSpent.plus(event.params.param2);
+  agentStats.totalSpent = agentStats.totalSpent.plus(event.params.amount);
   agentStats.save();
 }
 
 export function handleBountyClaimed(event: BountyClaimed): void {
-  let bountyId = event.params.param0.toString();
+  let bountyId = event.params.id.toString();
   let bounty = Bounty.load(bountyId);
   if (!bounty) return;
 
   bounty.status = 'claimed';
-  bounty.claimer = event.params.param1;
+  bounty.claimer = event.params.claimer;
   bounty.claimedAt = event.block.timestamp;
   bounty.save();
 
-  let claimerStats = getOrCreateClaimerStats(event.params.param1);
+  let claimerStats = getOrCreateClaimerStats(event.params.claimer);
   claimerStats.totalClaimed += 1;
   claimerStats.activeClaims += 1;
   claimerStats.save();
 }
 
 export function handleBountySubmitted(event: BountySubmitted): void {
-  let bountyId = event.params.param0.toString();
+  let bountyId = event.params.id.toString();
   let bounty = Bounty.load(bountyId);
   if (!bounty) return;
 
   bounty.status = 'submitted';
-  bounty.proofUrl = event.params.param1;
+  bounty.proofUrl = event.params.proofURI;
   bounty.submittedAt = event.block.timestamp;
   bounty.save();
 }
 
 export function handleBountyPaid(event: BountyPaid): void {
-  let bountyId = event.params.param0.toString();
+  let bountyId = event.params.id.toString();
   let bounty = Bounty.load(bountyId);
   if (!bounty) return;
 
@@ -109,13 +112,13 @@ export function handleBountyPaid(event: BountyPaid): void {
     let claimerStats = getOrCreateClaimerStats(bounty.claimer as Bytes);
     claimerStats.activeClaims -= 1;
     claimerStats.completedBounties += 1;
-    claimerStats.totalEarned = claimerStats.totalEarned.plus(event.params.param2);
+    claimerStats.totalEarned = claimerStats.totalEarned.plus(event.params.payout);
     claimerStats.save();
   }
 }
 
 export function handleBountyCancelled(event: BountyCancelled): void {
-  let bountyId = event.params.param0.toString();
+  let bountyId = event.params.id.toString();
   let bounty = Bounty.load(bountyId);
   if (!bounty) return;
 
@@ -133,4 +136,47 @@ export function handleBountyCancelled(event: BountyCancelled): void {
     claimerStats.activeClaims -= 1;
     claimerStats.save();
   }
+}
+
+export function handleBountyRejected(event: BountyRejected): void {
+  let bountyId = event.params.id.toString();
+  let bounty = Bounty.load(bountyId);
+  if (!bounty) return;
+
+  bounty.status = 'rejected';
+  bounty.rejectedAt = event.block.timestamp;
+  bounty.rejectedReason = event.params.reason;
+  bounty.save();
+}
+
+export function handleBountyDisputed(event: BountyDisputed): void {
+  let bountyId = event.params.id.toString();
+  let bounty = Bounty.load(bountyId);
+  if (!bounty) return;
+
+  bounty.status = 'disputed';
+  bounty.disputeInitiator = event.params.claimer;
+  bounty.disputeBond = event.params.bond;
+  bounty.disputeEvidenceURI = event.params.evidenceURI;
+  bounty.disputeFiledAt = event.block.timestamp;
+  bounty.disputeResolved = false;
+  bounty.save();
+}
+
+export function handleDisputeResolved(event: DisputeResolved): void {
+  let bountyId = event.params.id.toString();
+  let bounty = Bounty.load(bountyId);
+  if (!bounty) return;
+
+  bounty.disputeResolved = true;
+  bounty.disputeClaimerWon = event.params.claimerWins;
+
+  if (event.params.claimerWins) {
+    // claimerWins — bounty will be paid out, BountyPaid event handles status
+    bounty.status = 'disputed';
+  } else {
+    // agent wins — bounty cancelled, BountyCancelled event handles stats
+    bounty.status = 'cancelled';
+  }
+  bounty.save();
 }
