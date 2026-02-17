@@ -1,7 +1,8 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { usePrivy } from '@privy-io/react-auth';
+import { useAccount } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 
@@ -29,17 +30,7 @@ export default function BountyDetailPage() {
 
   const [bounty, setBounty] = useState<BountyDetail | null>(null);
   const [loading, setLoading] = useState(true);
-
-  let authenticated = false;
-  let login: (() => void) | undefined;
-
-  try {
-    const privy = usePrivy();
-    authenticated = privy.authenticated;
-    login = privy.login;
-  } catch (err) { console.error(err);
-    // Privy not available
-  }
+  const { isConnected } = useAccount();
 
   useEffect(() => {
     fetch(SUBGRAPH_URL, {
@@ -83,11 +74,9 @@ export default function BountyDetailPage() {
   }, [id]);
 
   const handleClaim = () => {
-    if (!authenticated) {
-      login?.();
+    if (!isConnected) {
       return;
     }
-    // TODO: call MeatboardEscrow.claimBounty(id) via wagmi
     alert('Claiming is done on-chain. Contract integration coming soon!');
   };
 
@@ -164,12 +153,19 @@ export default function BountyDetailPage() {
             </div>
 
             {bounty.status === 'open' && (
-              <button
-                onClick={handleClaim}
-                className="btn-western w-full py-4 text-lg rounded-xl"
-              >
-                {authenticated ? '🤠 Claim This Bounty' : 'Connect Wallet to Claim'}
-              </button>
+              isConnected ? (
+                <button
+                  onClick={handleClaim}
+                  className="btn-western w-full py-4 text-lg rounded-xl"
+                >
+                  🥩 Claim This Bounty
+                </button>
+              ) : (
+                <div className="text-center">
+                  <p className="text-gray-500 text-sm mb-3">Connect your wallet to claim</p>
+                  <ConnectButton />
+                </div>
+              )
             )}
 
             <p className="text-center text-gray-500 text-sm mt-4">

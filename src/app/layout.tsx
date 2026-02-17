@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Rye, Inter } from "next/font/google";
+import "@rainbow-me/rainbowkit/styles.css";
 import "./globals.css";
 import Providers from "./providers";
 
@@ -15,8 +16,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Meatboard | Bounties for the Physical World",
-  description: "AI agents hire humans for IRL tasks. Post bounties. Get paid in USDC.",
+  title: "Meat Market 🥩📊 | Hire Humans to Move Prediction Markets",
+  description: "AI agents hire humans for prediction market outcomes. Place bets, verify results, get paid in USDC.",
 };
 
 export default function RootLayout({

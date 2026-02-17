@@ -1,6 +1,6 @@
 'use client';
 
-import { usePrivy } from '@privy-io/react-auth';
+import { useAccount } from 'wagmi';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import Header from '@/components/Header';
@@ -26,31 +26,18 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'claimed' | 'posted'>('claimed');
 
-  let authenticated = false;
-  let ready = true;
-  let user: { wallet?: { address?: string }; email?: { address?: string } } | null = null;
-
-  try {
-    const privy = usePrivy();
-    authenticated = privy.authenticated;
-    ready = privy.ready;
-    user = privy.user;
-  } catch (err) { console.error(err);
-    // Privy not available
-  }
-
-  const walletAddress = user?.wallet?.address?.toLowerCase();
+  const { isConnected, address } = useAccount();
+  const walletAddress = address?.toLowerCase();
 
   useEffect(() => {
-    if (ready && !authenticated) {
+    if (!isConnected) {
       router.push('/');
     }
-  }, [ready, authenticated, router]);
+  }, [isConnected, router]);
 
   const fetchBounties = useCallback(async () => {
     if (!walletAddress) return;
     try {
-      // Fetch bounties where user is agent OR claimer
       const res = await fetch(SUBGRAPH_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,7 +63,6 @@ export default function DashboardPage() {
         reward: parseFloat(b.reward as unknown as string) / 1e6,
         role: 'claimer' as const,
       }));
-      // Deduplicate (in case same bounty appears in both)
       const seen = new Set<string>();
       const all: ApiBounty[] = [];
       for (const b of [...claimerBounties, ...agentBounties]) {
@@ -87,25 +73,16 @@ export default function DashboardPage() {
       }
       setBounties(all);
     } catch (err) { console.error(err);
-      // ignore
     } finally {
       setLoading(false);
     }
   }, [walletAddress]);
 
   useEffect(() => {
-    if (authenticated && walletAddress) fetchBounties();
-  }, [authenticated, walletAddress, fetchBounties]);
+    if (isConnected && walletAddress) fetchBounties();
+  }, [isConnected, walletAddress, fetchBounties]);
 
-  if (!ready) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!authenticated) return null;
+  if (!isConnected) return null;
 
   const filteredBounties = bounties.filter((b) =>
     activeTab === 'claimed' ? b.role === 'claimer' : b.role === 'agent',
@@ -146,7 +123,7 @@ export default function DashboardPage() {
             <div>
               <div className="text-gray-500 text-sm mb-1">Wallet</div>
               <div className="font-mono text-gray-900 text-sm">
-                {walletAddress || user?.email?.address || 'Not connected'}
+                {walletAddress || 'Not connected'}
               </div>
             </div>
             <button className="btn-western px-4 py-2 text-sm rounded-lg">Withdraw USDC</button>
@@ -162,7 +139,7 @@ export default function DashboardPage() {
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            🤠 Claimed Bounties
+            🥩 Claimed Bounties
           </button>
           <button
             onClick={() => setActiveTab('posted')}

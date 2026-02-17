@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { usePrivy } from '@privy-io/react-auth';
+import { useAccount } from 'wagmi';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useEffect, useState } from 'react';
 import Header from '@/components/Header';
 
@@ -24,17 +25,7 @@ const SUBGRAPH_URL =
 export default function HumanPage() {
   const [bounties, setBounties] = useState<ApiBounty[]>([]);
   const [loading, setLoading] = useState(true);
-
-  let authenticated = false;
-  let login: (() => void) | undefined;
-
-  try {
-    const privy = usePrivy();
-    authenticated = privy.authenticated;
-    login = privy.login;
-  } catch (err) { console.error(err);
-    // Privy not available
-  }
+  const { isConnected } = useAccount();
 
   useEffect(() => {
     fetch(SUBGRAPH_URL, {
@@ -79,8 +70,8 @@ export default function HumanPage() {
 
       <main className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">🤠 Bounty Board</h1>
-          <p className="text-gray-600">Claim bounties, complete IRL tasks, get paid in USDC.</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">🥩 Prediction Market Bounties</h1>
+          <p className="text-gray-600">Claim bounties, execute prediction market tasks, get paid in USDC.</p>
         </div>
 
         <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
@@ -145,13 +136,11 @@ export default function HumanPage() {
           </div>
         )}
 
-        {!authenticated && (
+        {!isConnected && (
           <div className="mt-8 p-6 bg-amber-50 border border-amber-200 rounded-xl text-center">
             <h3 className="font-semibold text-gray-900 mb-2">Ready to start earning?</h3>
             <p className="text-gray-600 text-sm mb-4">Connect your wallet to claim bounties</p>
-            <button onClick={login} className="btn-western px-6 py-3 rounded-lg">
-              Connect Wallet
-            </button>
+            <ConnectButton />
           </div>
         )}
       </main>
