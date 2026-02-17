@@ -1,36 +1,30 @@
 'use client';
 
-import { PrivyProvider } from '@privy-io/react-auth';
-import { arbitrum } from 'viem/chains';
+import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { WagmiProvider } from 'wagmi';
+import { arbitrum } from 'wagmi/chains';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { http } from 'wagmi';
 
-const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+const config = getDefaultConfig({
+  appName: 'Meat Market',
+  projectId: 'meat-market', // WalletConnect project ID (optional for injected wallets)
+  chains: [arbitrum],
+  transports: {
+    [arbitrum.id]: http('https://arb-mainnet.g.alchemy.com/v2/WtGzKM0NAY_Mr3rAYlykQWnzPF6JbcHy'),
+  },
+});
+
+const queryClient = new QueryClient();
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  // If no Privy app ID, render children without Privy
-  // This allows the build to succeed without a real app ID
-  if (!PRIVY_APP_ID) {
-    return <>{children}</>;
-  }
-
   return (
-    <PrivyProvider
-      appId={PRIVY_APP_ID}
-      config={{
-        loginMethods: ['email', 'google', 'wallet'],
-        appearance: {
-          theme: 'dark',
-          accentColor: '#D97706', // amber-600, western gold
-        },
-        defaultChain: arbitrum,
-        supportedChains: [arbitrum],
-        embeddedWallets: {
-          ethereum: {
-            createOnLogin: 'users-without-wallets',
-          },
-        },
-      }}
-    >
-      {children}
-    </PrivyProvider>
+    <WagmiProvider config={config}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider>
+          {children}
+        </RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
   );
 }
